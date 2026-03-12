@@ -13,9 +13,24 @@ if (nextArgs.length === 0) {
 
 process.chdir(rootDir);
 
-const child = spawn(process.execPath, [nextBinPath, ...nextArgs], {
+const childEnv = { ...process.env };
+const nodeArgs = [];
+
+if (nextArgs[0] === "build") {
+  const existingNodeOptions = childEnv.NODE_OPTIONS ?? "";
+
+  if (!existingNodeOptions.includes("--max-old-space-size=")) {
+    childEnv.NODE_OPTIONS = existingNodeOptions
+      ? `--max-old-space-size=4096 ${existingNodeOptions}`
+      : "--max-old-space-size=4096";
+  }
+
+  nodeArgs.push("--max-old-space-size=4096");
+}
+
+const child = spawn(process.execPath, [...nodeArgs, nextBinPath, ...nextArgs], {
   cwd: rootDir,
-  env: process.env,
+  env: childEnv,
   stdio: "inherit",
 });
 

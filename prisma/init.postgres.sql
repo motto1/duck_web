@@ -10,6 +10,9 @@ CREATE TYPE "MailboxStatus" AS ENUM ('ACTIVE', 'REMOVED', 'REMOTE_DELETED', 'AUT
 -- CreateEnum
 CREATE TYPE "SyncTargetType" AS ENUM ('API_KEY', 'MAILBOX', 'MESSAGE', 'SYSTEM');
 
+-- CreateEnum
+CREATE TYPE "DuckMailProxyType" AS ENUM ('HTTP', 'HTTPS', 'SOCKS5');
+
 -- CreateTable
 CREATE TABLE "ApiKey" (
     "id" TEXT NOT NULL,
@@ -68,6 +71,13 @@ CREATE TABLE "RelayClientDomain" (
 CREATE TABLE "AppConfig" (
     "id" TEXT NOT NULL,
     "duckmailApiBaseUrl" TEXT,
+    "encryptedAdminPassword" TEXT,
+    "duckmailProxyEnabled" BOOLEAN,
+    "duckmailProxyType" "DuckMailProxyType",
+    "duckmailProxyHost" TEXT,
+    "duckmailProxyPort" INTEGER,
+    "duckmailProxyUsername" TEXT,
+    "encryptedDuckmailProxyPassword" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

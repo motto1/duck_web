@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { adminSessionService } from "@/lib/services/admin-session-service";
+import { verifyAdminPassword } from "@/lib/auth";
 import { domainSyncService } from "@/lib/services/domain-sync-service";
 import { DuckMailClient } from "@/lib/duckmail/client";
 import { env } from "@/lib/env";
@@ -20,6 +21,13 @@ import { withStatusMessage } from "@/lib/utils";
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function isMissingConfigTableError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === "P2021" || error.code === "P2022")
+  );
 }
 
 async function requireAdmin() {
@@ -273,10 +281,7 @@ export async function updateDuckMailApiBaseUrlAction(formData: FormData) {
     try {
       await appConfigService.updateDuckMailApiBaseUrl(parsed.toString().replace(/\/$/, ""));
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        (error.code === "P2021" || error.code === "P2022")
-      ) {
+      if (isMissingConfigTableError(error)) {
         redirect(withStatusMessage("/dashboard/settings", "error", "请先运行 npm run db:push 同步数据库结构", basePath));
       }
 
@@ -297,10 +302,7 @@ export async function resetDuckMailApiBaseUrlAction() {
   try {
     await appConfigService.resetDuckMailApiBaseUrl();
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      (error.code === "P2021" || error.code === "P2022")
-    ) {
+    if (isMissingConfigTableError(error)) {
       redirect(withStatusMessage("/dashboard/settings", "error", "请先运行 npm run db:push 同步数据库结构", basePath));
     }
 
@@ -309,6 +311,97 @@ export async function resetDuckMailApiBaseUrlAction() {
 
   revalidatePath("/dashboard/settings");
   redirect(withStatusMessage("/dashboard/settings", "success", "已恢复环境变量中的 DuckMail API 地址", basePath));
+}
+
+export async function updateDuckMailProxyAction(formData: FormData) {
+  await requireAdmin();
+  const basePath = await getRequestBasePath();
+  const enabled = getString(formData, "duckmailProxyEnabled") === "true";
+  const type = getString(formData, "duckmailProxyType");
+  const host = getString(formData, "duckmailProxyHost");
+  const portValue = getString(formData, "duckmailProxyPort");
+  const username = getString(formData, "duckmailProxyUsername");
+  const password = getString(formData, "duckmailProxyPassword");
+  const port = Number.parseInt(portValue, 10);
+
+  if (!["http", "https", "socks5"].includes(type)) {
+    redirect(withStatusMessage("/dashboard/settings", "error", "请选择有效的代理协议", basePath));
+  }
+
+  if (enabled && (!host || !Number.isInteger(port) || port <= 0)) {
+    redirect(withStatusMessage("/dashboard/settings", "error", "启用代理时必须填写有效的主机和端口", basePath));
+  }
+
+  try {
+    await appConfigService.updateDuckMailProxyConfig({
+      enabled,
+      type: type as "http" | "https" | "socks5",
+      host,
+      port: Number.isInteger(port) && port > 0 ? port : 0,
+      username: username || null,
+      password: password ? password : undefined,
+    });
+  } catch (error) {
+    if (isMissingConfigTableError(error)) {
+      redirect(withStatusMessage("/dashboard/settings", "error", "请先运行 npm run db:push 同步数据库结构", basePath));
+    }
+
+    throw error;
+  }
+
+  revalidatePath("/dashboard/settings");
+  redirect(withStatusMessage("/dashboard/settings", "success", "DuckMail 代理配置已更新", basePath));
+}
+
+export async function clearDuckMailProxyAction() {
+  await requireAdmin();
+  const basePath = await getRequestBasePath();
+
+  try {
+    await appConfigService.clearDuckMailProxyConfig();
+  } catch (error) {
+    if (isMissingConfigTableError(error)) {
+      redirect(withStatusMessage("/dashboard/settings", "error", "请先运行 npm run db:push 同步数据库结构", basePath));
+    }
+
+    throw error;
+  }
+
+  revalidatePath("/dashboard/settings");
+  redirect(withStatusMessage("/dashboard/settings", "success", "DuckMail 代理配置已清除", basePath));
+}
+
+export async function updateAdminPasswordAction(formData: FormData) {
+  await requireAdmin();
+  const basePath = await getRequestBasePath();
+  const currentPassword = getString(formData, "currentPassword");
+  const nextPassword = getString(formData, "nextPassword");
+  const confirmPassword = getString(formData, "confirmPassword");
+
+  if (!(await verifyAdminPassword(currentPassword))) {
+    redirect(withStatusMessage("/dashboard/settings", "error", "当前管理员密码不正确", basePath));
+  }
+
+  if (nextPassword.length < 8) {
+    redirect(withStatusMessage("/dashboard/settings", "error", "新密码至少需要 8 位", basePath));
+  }
+
+  if (nextPassword !== confirmPassword) {
+    redirect(withStatusMessage("/dashboard/settings", "error", "两次输入的新密码不一致", basePath));
+  }
+
+  try {
+    await appConfigService.updateAdminPassword(nextPassword);
+  } catch (error) {
+    if (isMissingConfigTableError(error)) {
+      redirect(withStatusMessage("/dashboard/settings", "error", "请先运行 npm run db:push 同步数据库结构", basePath));
+    }
+
+    throw error;
+  }
+
+  revalidatePath("/dashboard/settings");
+  redirect(withStatusMessage("/dashboard/settings", "success", "管理员密码已更新", basePath));
 }
 
 export async function toggleFavoriteMailboxAction(formData: FormData) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAdminSession } from "@/lib/auth";
+import { duckMailTransport } from "@/lib/duckmail/transport";
 import { appConfigService } from "@/lib/services/app-config-service";
 
 type LatencyStatus = "ok" | "degraded" | "offline";
@@ -19,18 +20,21 @@ export async function GET() {
   }
 
   const baseUrl = await appConfigService.getDuckMailApiBaseUrl();
+  const proxy = await appConfigService.getDuckMailProxyConfig();
   const startedAt = Date.now();
 
   try {
-    const response = await fetch(new URL("/domains?page=1", baseUrl), {
+    const response = await duckMailTransport.request(new URL("/domains?page=1", baseUrl), {
       method: "GET",
-      cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      timeoutMs: 5000,
+      proxy,
     });
 
     const latencyMs = Date.now() - startedAt;
     const status: LatencyStatus =
-      !response.ok || latencyMs >= 1800 ? "degraded" : "ok";
+      response.status < 200 || response.status >= 300 || latencyMs >= 1800
+        ? "degraded"
+        : "ok";
 
     return NextResponse.json({
       status,

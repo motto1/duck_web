@@ -8,6 +8,7 @@ import {
   type DuckMailSource,
   type DuckMailTokenResponse,
 } from "@/lib/duckmail/types";
+import { duckMailTransport } from "@/lib/duckmail/transport";
 import { appConfigService } from "@/lib/services/app-config-service";
 import { normalizeRelativePath } from "@/lib/utils";
 
@@ -47,7 +48,6 @@ export class DuckMailClient {
 
   private headers(extra?: HeadersInit) {
     const headers = new Headers(extra);
-    headers.set("Content-Type", "application/json");
 
     if (this.auth.type !== "none") {
       headers.set("Authorization", `Bearer ${this.auth.value}`);
@@ -56,18 +56,43 @@ export class DuckMailClient {
     return headers;
   }
 
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const baseUrl = await this.getBaseUrl();
-    const response = await fetch(new URL(path, baseUrl), {
-      ...init,
-      headers: this.headers(init?.headers),
-      cache: "no-store",
+  private headersToObject(extra?: HeadersInit) {
+    const headers = this.headers(extra);
+    const record: Record<string, string> = {};
+
+    headers.forEach((value, key) => {
+      record[key] = value;
     });
 
-    const rawText = await response.text();
+    return record;
+  }
+
+  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+    const baseUrl = await this.getBaseUrl();
+    const proxy = await appConfigService.getDuckMailProxyConfig();
+    const headers = this.headersToObject(init?.headers);
+
+    if (init?.body) {
+      headers["content-type"] = "application/json";
+    }
+
+    const response = await duckMailTransport.request(new URL(path, baseUrl), {
+      method: init?.method,
+      headers,
+      body:
+        typeof init?.body === "string"
+          ? init.body
+          : init?.body instanceof Uint8Array
+            ? init.body
+            : undefined,
+      timeoutMs: 10000,
+      proxy,
+    });
+
+    const rawText = Buffer.from(response.body).toString("utf8");
     const data = rawText ? (JSON.parse(rawText) as T | DuckMailErrorPayload) : null;
 
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
       const errorPayload = (data ?? {}) as DuckMailErrorPayload;
       throw new DuckMailApiError(
         response.status,
@@ -136,17 +161,22 @@ export class DuckMailClient {
 
   async download(path: string) {
     const baseUrl = await this.getBaseUrl();
-    const response = await fetch(normalizeRelativePath(path, baseUrl), {
-      headers:
-        this.auth.type === "none"
-          ? undefined
-          : {
-              Authorization: `Bearer ${this.auth.value}`,
-            },
-      cache: "no-store",
-    });
+    const proxy = await appConfigService.getDuckMailProxyConfig();
+    const response = await duckMailTransport.request(
+      normalizeRelativePath(path, baseUrl),
+      {
+        headers:
+          this.auth.type === "none"
+            ? undefined
+            : {
+                Authorization: `Bearer ${this.auth.value}`,
+              },
+        timeoutMs: 20000,
+        proxy,
+      },
+    );
 
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
       throw new DuckMailApiError(
         response.status,
         "DownloadFailed",
@@ -154,6 +184,10 @@ export class DuckMailClient {
       );
     }
 
-    return response;
+    return {
+      status: response.status,
+      headers: response.headers,
+      body: response.body,
+    };
   }
 }

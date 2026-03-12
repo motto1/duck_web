@@ -35,7 +35,7 @@ export async function GET(
     `attachment; filename="${encodeURIComponent(attachment.filename)}"`,
   );
 
-  return new NextResponse(response.body, {
+  return new NextResponse(Buffer.from(response.body), {
     status: response.status,
     headers,
   });

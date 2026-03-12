@@ -1,10 +1,11 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { jwtVerify, SignJWT } from "jose";
 import argon2 from "argon2";
 
 import { env } from "@/lib/env";
 import { getRequestBasePath, withRequestBasePath } from "@/lib/request-base-path";
+import { appConfigService } from "@/lib/services/app-config-service";
 import { getCookiePath } from "@/lib/utils";
 
 const SESSION_COOKIE = "duckmail_admin_session";
@@ -14,8 +15,9 @@ function sessionSecret() {
 }
 
 export async function verifyAdminPassword(password: string) {
-  if (env.ADMIN_PASSWORD) {
-    return password === env.ADMIN_PASSWORD;
+  const storedAdminPassword = await appConfigService.getAdminPassword();
+  if (storedAdminPassword) {
+    return password === storedAdminPassword;
   }
 
   if (!env.ADMIN_PASSWORD_HASH) {
@@ -31,6 +33,39 @@ export async function verifyAdminPassword(password: string) {
   return argon2.verify(env.ADMIN_PASSWORD_HASH, password);
 }
 
+async function isSecureRequest() {
+  const requestHeaders = await headers();
+  const forwardedProto = requestHeaders
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim()
+    .toLowerCase();
+
+  if (forwardedProto) {
+    return forwardedProto === "https";
+  }
+
+  const origin = requestHeaders.get("origin") ?? requestHeaders.get("referer") ?? "";
+  return origin.startsWith("https://");
+}
+
+async function getSessionCookieOptions(
+  overrides: Partial<{
+    expires: Date;
+    maxAge: number;
+  }> = {},
+) {
+  const basePath = await getRequestBasePath();
+
+  return {
+    httpOnly: true as const,
+    sameSite: "lax" as const,
+    secure: await isSecureRequest(),
+    path: getCookiePath(basePath),
+    ...overrides,
+  };
+}
+
 export async function createAdminSession() {
   return new SignJWT({ role: "admin", username: env.ADMIN_USERNAME })
     .setProtectedHeader({ alg: "HS256" })
@@ -42,24 +77,20 @@ export async function createAdminSession() {
 export async function persistAdminSession() {
   const token = await createAdminSession();
   const store = await cookies();
-  const basePath = await getRequestBasePath();
   store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: getCookiePath(basePath),
+    ...(await getSessionCookieOptions({
+      maxAge: 60 * 60 * 24 * 7,
+    })),
     maxAge: 60 * 60 * 24 * 7,
   });
 }
 
 export async function clearAdminSession() {
   const store = await cookies();
-  const basePath = await getRequestBasePath();
   store.set(SESSION_COOKIE, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: getCookiePath(basePath),
+    ...(await getSessionCookieOptions({
+      expires: new Date(0),
+    })),
     expires: new Date(0),
   });
 }

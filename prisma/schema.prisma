@@ -28,6 +28,12 @@ enum SyncTargetType {
   SYSTEM
 }
 
+enum DuckMailProxyType {
+  HTTP
+  HTTPS
+  SOCKS5
+}
+
 model ApiKey {
   id           String        @id @default(cuid())
   name         String
@@ -81,10 +87,17 @@ model RelayClientDomain {
 }
 
 model AppConfig {
-  id                 String   @id
-  duckmailApiBaseUrl String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                           String            @id
+  duckmailApiBaseUrl           String?
+  encryptedAdminPassword       String?
+  duckmailProxyEnabled         Boolean?
+  duckmailProxyType            DuckMailProxyType?
+  duckmailProxyHost            String?
+  duckmailProxyPort            Int?
+  duckmailProxyUsername        String?
+  encryptedDuckmailProxyPassword String?
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime          @updatedAt
 }
 
 model Mailbox {

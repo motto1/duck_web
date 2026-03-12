@@ -1,10 +1,13 @@
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 
 import {
+  clearDuckMailProxyAction,
   rebuildAllCachesAction,
   resetDuckMailApiBaseUrlAction,
   syncAllDomainsAction,
+  updateAdminPasswordAction,
   updateDuckMailApiBaseUrlAction,
+  updateDuckMailProxyAction,
 } from "@/app/actions";
 import { ApiSettingsSection } from "@/components/dashboard/api-settings-section";
 import { DashboardTopbar } from "@/components/dashboard/topbar";
@@ -24,17 +27,37 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ success?: string; error?: string }>;
 }) {
-  const [params, t, runtimeDuckMailApi, appConfig, mailboxCount, latestLogs] = await Promise.all([
+  const [
+    params,
+    t,
+    runtimeDuckMailApi,
+    appConfig,
+    proxyConfig,
+    adminPasswordSource,
+    mailboxCount,
+    latestLogs,
+  ] = await Promise.all([
     searchParams,
     getServerDictionary(),
     appConfigService.getDuckMailApiBaseUrl(),
     appConfigService.getConfig(),
+    appConfigService.getDuckMailProxyConfig(),
+    appConfigService.getAdminPasswordSource(),
     prisma.mailbox.count(),
     prisma.syncLog.findMany({
       orderBy: { startedAt: "desc" },
       take: 10,
     }),
   ]);
+
+  const adminPasswordSourceLabel =
+    adminPasswordSource === "database"
+      ? t.adminPasswordSourceDatabase
+      : adminPasswordSource === "env"
+        ? t.adminPasswordSourceEnv
+        : adminPasswordSource === "hash"
+          ? t.adminPasswordSourceHash
+          : t.adminPasswordSourceMissing;
 
   const healthChecks = [
     { label: t.database, value: env.DATABASE_URL, ok: true },
@@ -46,6 +69,7 @@ export default async function SettingsPage({
       ok: true,
     },
     { label: t.adminAccount, value: env.ADMIN_USERNAME, ok: true },
+    { label: t.adminPasswordSource, value: adminPasswordSourceLabel, ok: true },
     { label: t.defaultRelayToken, value: env.RELAY_API_TOKEN ? t.configuredOptional : t.notConfigured, ok: true },
     {
       label: t.sessionSecret,
@@ -84,6 +108,114 @@ export default async function SettingsPage({
               </SubmitButton>
             </form>
           </div>
+        </Card>
+
+        <Card>
+          <CardTitle>{t.duckmailProxySettings}</CardTitle>
+          <CardDescription className="mt-1">
+            {t.duckmailProxySettingsDescription}
+          </CardDescription>
+          <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+            <form action={updateDuckMailProxyAction} className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <label className="grid gap-2 text-sm">
+                  <span className="font-medium text-slate-900">{t.proxyEnabled}</span>
+                  <select
+                    className="flex h-11 w-full rounded-2xl border border-slate-200 bg-[#f8f8f9] px-4 text-sm outline-none focus:border-[#3867d6] focus:ring-2 focus:ring-[#dcd8ff]"
+                    defaultValue={proxyConfig ? "true" : "false"}
+                    name="duckmailProxyEnabled"
+                  >
+                    <option value="false">{t.disabled}</option>
+                    <option value="true">{t.enabled}</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span className="font-medium text-slate-900">{t.proxyType}</span>
+                  <select
+                    className="flex h-11 w-full rounded-2xl border border-slate-200 bg-[#f8f8f9] px-4 text-sm outline-none focus:border-[#3867d6] focus:ring-2 focus:ring-[#dcd8ff]"
+                    defaultValue={proxyConfig?.type ?? "http"}
+                    name="duckmailProxyType"
+                  >
+                    <option value="http">HTTP</option>
+                    <option value="https">HTTPS</option>
+                    <option value="socks5">SOCKS5</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm md:col-span-2">
+                  <span className="font-medium text-slate-900">{t.proxyHost}</span>
+                  <Input
+                    defaultValue={proxyConfig?.host ?? ""}
+                    name="duckmailProxyHost"
+                    placeholder="127.0.0.1"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span className="font-medium text-slate-900">{t.proxyPort}</span>
+                  <Input
+                    defaultValue={proxyConfig?.port?.toString() ?? ""}
+                    name="duckmailProxyPort"
+                    placeholder="7890"
+                    type="number"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span className="font-medium text-slate-900">
+                    {t.proxyUsername} <span className="text-slate-400">({t.optional})</span>
+                  </span>
+                  <Input
+                    defaultValue={proxyConfig?.username ?? ""}
+                    name="duckmailProxyUsername"
+                    placeholder="proxy-user"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm md:col-span-2">
+                  <span className="font-medium text-slate-900">
+                    {t.proxyPassword} <span className="text-slate-400">({t.optional})</span>
+                  </span>
+                  <Input
+                    defaultValue=""
+                    name="duckmailProxyPassword"
+                    placeholder={proxyConfig?.password ? t.keepExistingPassword : "proxy-password"}
+                    type="password"
+                  />
+                </label>
+              </div>
+              <SubmitButton className="justify-center px-6 sm:w-fit" pendingText={t.processing}>
+                {t.saveProxySettings}
+              </SubmitButton>
+            </form>
+            <form action={clearDuckMailProxyAction}>
+              <SubmitButton className="w-full justify-center xl:w-auto" pendingText={t.processing} variant="secondary">
+                {t.clearProxySettings}
+              </SubmitButton>
+            </form>
+          </div>
+        </Card>
+
+        <Card>
+          <CardTitle>{t.adminSecuritySettings}</CardTitle>
+          <CardDescription className="mt-1">
+            {t.adminSecuritySettingsDescription}
+          </CardDescription>
+          <form action={updateAdminPasswordAction} className="mt-6 grid gap-4 md:grid-cols-3">
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium text-slate-900">{t.currentPasswordLabel}</span>
+              <Input name="currentPassword" required type="password" />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium text-slate-900">{t.newPasswordLabel}</span>
+              <Input minLength={8} name="nextPassword" required type="password" />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium text-slate-900">{t.confirmPasswordLabel}</span>
+              <Input minLength={8} name="confirmPassword" required type="password" />
+            </label>
+            <div className="md:col-span-3">
+              <SubmitButton className="justify-center px-6" pendingText={t.processing}>
+                {t.updateAdminPassword}
+              </SubmitButton>
+            </div>
+          </form>
         </Card>
 
         <ApiSettingsSection success={params.success} error={params.error} />
