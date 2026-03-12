@@ -14,9 +14,17 @@ function sessionSecret() {
 }
 
 export async function verifyAdminPassword(password: string) {
+  if (env.ADMIN_PASSWORD) {
+    return password === env.ADMIN_PASSWORD;
+  }
+
+  if (!env.ADMIN_PASSWORD_HASH) {
+    return false;
+  }
+
   if (!env.ADMIN_PASSWORD_HASH.startsWith("$argon2")) {
     throw new Error(
-      "ADMIN_PASSWORD_HASH 配置无效：请在 .env 中将每个 $ 写成 \\$",
+      "ADMIN_PASSWORD_HASH 配置无效：请在 .env 中将每个 $ 写成 \\$，或者直接改用 ADMIN_PASSWORD",
     );
   }
 

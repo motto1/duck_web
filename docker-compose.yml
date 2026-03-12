@@ -3,32 +3,38 @@ services:
     image: postgres:16-alpine
     container_name: duck_web-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-duck_web}
-      POSTGRES_USER: ${POSTGRES_USER:-duck_web}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.compose}
+      POSTGRES_DB: duck_web
+      POSTGRES_USER: duck_web
+      POSTGRES_PASSWORD: duck_web_password
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U duck_web -d duck_web"]
       interval: 10s
       timeout: 5s
       retries: 5
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./prisma/init.postgres.sql:/docker-entrypoint-initdb.d/01-init.postgres.sql:ro
     restart: unless-stopped
-    env_file:
-      - .env.compose
 
   duck_web:
     image: ghcr.io/motto1/duck_web:latest
     container_name: duck_web-app
+    pull_policy: always
     depends_on:
       postgres:
         condition: service_healthy
-    env_file:
-      - .env.compose
+    environment:
+      DATABASE_URL: postgresql://duck_web:duck_web_password@postgres:5432/duck_web?schema=public
+      DUCKMAIL_API_BASE_URL: https://api.duckmail.sbs
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin123456
+      APP_ENCRYPTION_KEY: change-me-to-a-long-random-secret
+      SESSION_SECRET: change-me-to-another-long-random-secret
+      RELAY_API_TOKEN: change-me-to-a-relay-api-token
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "3000:3000"
     restart: unless-stopped
 
 volumes:

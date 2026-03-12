@@ -37,62 +37,44 @@ npm run dev
 
 - 本地开发默认使用 SQLite
 - Prisma Client 固定为 `binary` engine，规避 Windows + SQLite + Prisma 6 的 query engine panic
-- `.env` 里的 `ADMIN_PASSWORD_HASH` 需要把每个 `$` 写成 `\$`
-
-生成管理员密码哈希：
-
-```bash
-node scripts/hash-password.mjs "your-new-password"
-```
+- 管理员密码直接使用 `ADMIN_PASSWORD` 配置，不需要再生成 hash
 
 ## Docker / Compose 部署
 
-生产部署默认使用 GHCR 已发布镜像，而不是本地构建。
+默认提供一个可直接一键启动的编排文件，不依赖 `.env.compose` 或任何环境变量。
 
-1. 复制部署环境变量
-
-```bash
-cp .env.compose.example .env.compose
-```
-
-2. 修改 `.env.compose`
-
-至少需要确认这些值：
-
-- `POSTGRES_PASSWORD`
-- `DATABASE_URL`
-- `DUCKMAIL_API_BASE_URL`
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD_HASH`
-- `APP_ENCRYPTION_KEY`
-- `SESSION_SECRET`
-- `RELAY_API_TOKEN`
-
-3. 启动部署
+启动：
 
 ```bash
 docker compose up -d
 ```
 
-4. 查看服务状态
+查看状态：
 
 ```bash
 docker compose ps
-docker compose logs -f duck_web
+docker compose logs -f duck_web-app
 ```
 
-5. 更新镜像后重启
+更新到最新镜像后重启：
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-默认部署说明：
+默认编排说明：
 
-- `docker-compose.yml` 使用 `ghcr.io/motto1/duck_web:latest`
+- `docker-compose.yml` 直接使用 `ghcr.io/motto1/duck_web:latest`
+- PostgreSQL 默认账号：`duck_web`
+- PostgreSQL 默认密码：`duck_web_password`
+- PostgreSQL 默认数据库：`duck_web`
+- 后台默认管理员账号：`admin`
+- 后台默认管理员密码：`admin123456`
+- DuckMail API 默认地址：`https://api.duckmail.sbs`
 - PostgreSQL 数据保存在 named volume `postgres_data`
-- 容器启动时会执行 `npm run db:push:prod && npm run start`
+- PostgreSQL 首次初始化时会自动执行 `prisma/init.postgres.sql`
+- 应用镜像使用多阶段精简运行镜像，只负责启动服务本身
 
 如果你要在本地直接构建镜像测试，而不是拉 GHCR：
 

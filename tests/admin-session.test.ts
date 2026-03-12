@@ -1,7 +1,7 @@
 import { verifyAdminPassword } from "@/lib/auth";
 
 describe("Admin auth", () => {
-  it("accepts the default development password", async () => {
+  it("accepts the configured admin password", async () => {
     await expect(verifyAdminPassword("admin123456")).resolves.toBe(true);
   });
 
