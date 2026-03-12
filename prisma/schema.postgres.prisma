@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MailboxSource {
+  CREATED
+  JOINED_PASSWORD
+  JOINED_TOKEN
+}
+
+enum MailboxStatus {
+  ACTIVE
+  REMOVED
+  REMOTE_DELETED
+  AUTH_ERROR
+}
+
+enum SyncTargetType {
+  API_KEY
+  MAILBOX
+  MESSAGE
+  SYSTEM
+}
+
+model ApiKey {
+  id           String        @id @default(cuid())
+  name         String
+  note         String?
+  encryptedKey String
+  isEnabled    Boolean       @default(true)
+  lastSyncedAt DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  domains      DomainCache[]
+}
+
+model DomainCache {
+  id                String    @id @default(cuid())
+  apiKeyId          String?
+  apiKey            ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  domain            String
+  ownerId           String?
+  isPrivate         Boolean   @default(false)
+  isEnabledForRelay Boolean   @default(false)
+  isVerified        Boolean   @default(true)
+  verificationToken String?
+  lastSyncedAt      DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  relayClients      RelayClientDomain[]
+
+  @@unique([apiKeyId, domain])
+}
+
+model RelayClient {
+  id               String              @id @default(cuid())
+  name             String
+  note             String?
+  encryptedToken   String
+  tokenFingerprint String              @unique
+  isEnabled        Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  domains          RelayClientDomain[]
+}
+
+model RelayClientDomain {
+  relayClientId String
+  domainCacheId String
+  createdAt     DateTime      @default(now())
+  relayClient   RelayClient   @relation(fields: [relayClientId], references: [id], onDelete: Cascade)
+  domainCache   DomainCache   @relation(fields: [domainCacheId], references: [id], onDelete: Cascade)
+
+  @@id([relayClientId, domainCacheId])
+}
+
+model AppConfig {
+  id                 String   @id
+  duckmailApiBaseUrl String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Mailbox {
+  id                String         @id @default(cuid())
+  address           String         @unique
+  accountId         String         @unique
+  source            MailboxSource
+  status            MailboxStatus  @default(ACTIVE)
+  isFavorite        Boolean        @default(false)
+  displayName       String?
+  lastViewedAt      DateTime?
+  lastSyncedAt      DateTime?
+  lastMessageSyncAt DateTime?
+  lastError         String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  secrets           MailboxSecret?
+  messages          Message[]
+
+  @@index([status, updatedAt])
+  @@index([address])
+  @@index([isFavorite, updatedAt])
+  @@index([lastViewedAt])
+}
+
+model MailboxSecret {
+  id                String   @id @default(cuid())
+  mailboxId         String   @unique
+  mailbox           Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  encryptedPassword String?
+  encryptedToken    String
+  tokenValidatedAt  DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Message {
+  id                String       @id @default(cuid())
+  mailboxId         String
+  mailbox           Mailbox      @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  messageId         String
+  msgid             String?
+  accountId         String?
+  fromName          String?
+  fromAddress       String?
+  toJson            String
+  subject           String
+  seen              Boolean      @default(false)
+  isDeleted         Boolean      @default(false)
+  hasAttachments    Boolean      @default(false)
+  size              Int          @default(0)
+  downloadUrl       String?
+  textBody          String?
+  htmlBodiesJson    String?
+  rawSourceData     String?
+  sourceDownloadUrl String?
+  remoteCreatedAt   DateTime
+  remoteUpdatedAt   DateTime
+  syncedAt          DateTime     @default(now())
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  attachments       Attachment[]
+
+  @@unique([mailboxId, messageId])
+  @@index([mailboxId, remoteCreatedAt])
+  @@index([mailboxId, isDeleted, remoteCreatedAt])
+  @@index([mailboxId, syncedAt])
+}
+
+model Attachment {
+  id               String   @id @default(cuid())
+  messageDbId      String
+  message          Message  @relation(fields: [messageDbId], references: [id], onDelete: Cascade)
+  attachmentId     String
+  filename         String
+  contentType      String
+  disposition      String?
+  transferEncoding String?
+  related          Boolean  @default(false)
+  size             Int      @default(0)
+  downloadUrl      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([messageDbId, attachmentId])
+}
+
+model SyncLog {
+  id           String         @id @default(cuid())
+  targetType   SyncTargetType
+  targetId     String?
+  action       String
+  success      Boolean
+  errorType    String?
+  errorMessage String?
+  detailsJson  String?
+  startedAt    DateTime       @default(now())
+  endedAt      DateTime?
+
+  @@index([startedAt])
+  @@index([targetType, startedAt])
+}

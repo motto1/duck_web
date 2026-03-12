@@ -1,0 +1,6 @@
+services:
+  duck_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: duck_web:local

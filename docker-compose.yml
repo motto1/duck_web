@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: duck_web-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-duck_web}
+      POSTGRES_USER: ${POSTGRES_USER:-duck_web}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.compose}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    env_file:
+      - .env.compose
+
+  duck_web:
+    image: ghcr.io/motto1/duck_web:latest
+    container_name: duck_web-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.compose
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

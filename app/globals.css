@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --surface-muted: #f4f4f5;
+  --surface-subtle: #f8f8f9;
+  --surface-strong: #eef1f5;
+  --text: #1f2937;
+  --text-soft: #64748b;
+  --text-strong: #0f172a;
+  --border: #e2e8f0;
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --accent: #3867d6;
+  --accent-soft: #dcd8ff;
+  --success-soft: #dff8e6;
+  --success-text: #107340;
+  --danger-soft: #ffe2e2;
+  --danger-text: #c03232;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111827;
+  --surface: #18212f;
+  --surface-muted: #151d2a;
+  --surface-subtle: #1c2636;
+  --surface-strong: #233044;
+  --text: #e5edf8;
+  --text-soft: #9db0c8;
+  --text-strong: #f8fafc;
+  --border: #314154;
+  --card-shadow: 0 16px 40px rgba(2, 8, 23, 0.36);
+  --accent: #7ca1ff;
+  --accent-soft: rgba(124, 161, 255, 0.18);
+  --success-soft: rgba(16, 115, 64, 0.18);
+  --success-text: #84e1a8;
+  --danger-soft: rgba(192, 50, 50, 0.18);
+  --danger-text: #ff9b9b;
+}
+
+html {
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    "Manrope",
+    "Segoe UI",
+    sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.2);
+}
